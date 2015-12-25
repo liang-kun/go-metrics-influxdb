@@ -2,12 +2,12 @@ package influxdb
 
 import (
 	"fmt"
-	"log"
-	uurl "net/url"
-	"time"
-
 	"github.com/influxdb/influxdb/client"
 	"github.com/rcrowley/go-metrics"
+	"log"
+	uurl "net/url"
+	"os"
+	"time"
 )
 
 type reporter struct {
@@ -19,7 +19,8 @@ type reporter struct {
 	username string
 	password string
 
-	client *client.Client
+	client   *client.Client
+	hostname string
 }
 
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
@@ -30,6 +31,12 @@ func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, pass
 		return
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("unable to get hostname. err=%v", err)
+		return
+	}
+
 	rep := &reporter{
 		reg:      r,
 		interval: d,
@@ -37,6 +44,7 @@ func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, pass
 		database: database,
 		username: username,
 		password: password,
+		hostname: hostname,
 	}
 	if err := rep.makeClient(); err != nil {
 		log.Printf("unable to make InfluxDB client. err=%v", err)
@@ -91,6 +99,7 @@ func (r *reporter) send() error {
 				Measurement: fmt.Sprintf("%s.count", name),
 				Fields: map[string]interface{}{
 					"value": m.Count(),
+					"host":  r.hostname,
 				},
 				Time: now,
 			})
@@ -99,6 +108,7 @@ func (r *reporter) send() error {
 				Measurement: fmt.Sprintf("%s.gauge", name),
 				Fields: map[string]interface{}{
 					"value": m.Value(),
+					"host":  r.hostname,
 				},
 				Time: now,
 			})
@@ -107,6 +117,7 @@ func (r *reporter) send() error {
 				Measurement: fmt.Sprintf("%s.gauge", name),
 				Fields: map[string]interface{}{
 					"value": m.Value(),
+					"host":  r.hostname,
 				},
 				Time: now,
 			})
@@ -127,6 +138,7 @@ func (r *reporter) send() error {
 					"p99":      ps[3],
 					"p999":     ps[4],
 					"p9999":    ps[5],
+					"host":     r.hostname,
 				},
 				Time: now,
 			})
@@ -139,6 +151,7 @@ func (r *reporter) send() error {
 					"m5":    m.Rate5(),
 					"m15":   m.Rate15(),
 					"mean":  m.RateMean(),
+					"host":  r.hostname,
 				},
 				Time: now,
 			})
@@ -163,6 +176,7 @@ func (r *reporter) send() error {
 					"m5":       m.Rate5(),
 					"m15":      m.Rate15(),
 					"meanrate": m.RateMean(),
+					"host":     r.hostname,
 				},
 				Time: now,
 			})
